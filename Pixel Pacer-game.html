@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Runner - Speed Fixed Forever</title>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background: #1a1a1a; 
+        }
+        canvas { display: block; }
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: white; font-family: 'Arial', sans-serif;
+            font-size: 28px; font-weight: bold; text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            pointer-events: none; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        Score: <span id="score">0</span> | Best: <span id="highScore">0</span>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+        const highScoreElement = document.getElementById("highScore");
+
+        let gameID;
+        let score = 0;
+        let highScore = localStorage.getItem("runnerHighScore") || 0;
+        highScoreElement.innerText = highScore;
+        let gameActive = true;
+        let frame = 0;
+        let obstacles = [];
+        let coins = [];
+        let particles = [];
+        let stars = [];
+        let currentSpeed = 8; // സ്പീഡ് കൺട്രോൾ ചെയ്യാൻ പ്രത്യേക വേരിയബിൾ
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        for(let i=0; i<80; i++) {
+            stars.push({x: Math.random() * 2000, y: Math.random() * 500, s: Math.random() * 2});
+        }
+
+        let player = {
+            x: 100, y: 0, w: 50, h: 80,
+            dy: 0, jumpForce: 15, jumpCount: 0
+        };
+
+        function createParticles(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push({
+                    x: x, y: y,
+                    dx: (Math.random() - 0.5) * 10,
+                    dy: (Math.random() - 0.5) * 10,
+                    size: Math.random() * 5 + 2,
+                    life: 1,
+                    color: color
+                });
+            }
+        }
+
+        function drawPlayer(x, y, angle) {
+            ctx.save();
+            ctx.translate(x + 25, y + 40);
+            let move = Math.sin(angle) * 20;
+            ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 7; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(-15, -5); ctx.lineTo(-15 - move/1.5, 15); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(15 + move/1.5, 15); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-8, 15); ctx.lineTo(-8 + move/2, 40); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(8, 15); ctx.lineTo(8 - move/2, 40); ctx.stroke();
+            ctx.fillStyle = "#e67e22"; ctx.fillRect(-20, -20, 40, 40);
+            ctx.fillStyle = "#f1c40f"; ctx.beginPath(); ctx.arc(0, -35, 15, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+
+        function resetGame() {
+            cancelAnimationFrame(gameID);
+            score = 0;
+            currentSpeed = 8; // സ്പീഡ് കൃത്യമായി 8 ലേക്ക് മാറ്റുന്നു
+            scoreElement.innerText = score;
+            obstacles = [];
+            coins = [];
+            particles = [];
+            frame = 0;
+            player.y = 0;
+            player.dy = 0;
+            player.jumpCount = 0;
+            gameActive = true;
+            update();
+        }
+
+        function handleInput() {
+            if (gameActive) {
+                if (player.jumpCount < 2) {
+                    player.dy = -player.jumpForce;
+                    player.jumpCount++;
+                }
+            } else { 
+                resetGame(); 
+            }
+        }
+
+        window.addEventListener("keydown", (e) => { if(e.code === "Space") handleInput(); });
+        window.addEventListener("touchstart", (e) => { e.preventDefault(); handleInput(); }, {passive: false});
+
+        function update() {
+            if (!gameActive) {
+                particles.forEach((p, i) => {
+                    p.x += p.dx; p.y += p.dy; p.life -= 0.02;
+                    if(p.life <= 0) particles.splice(i, 1);
+                });
+                draw();
+                gameID = requestAnimationFrame(update);
+                return;
+            }
+
+            frame++;
+            let groundY = canvas.height - 100;
+            
+            // സ്പീഡ് ലോജിക് അപ്ഡേറ്റ് ചെയ്തു
+            currentSpeed = 8 + (score / 20);
+
+            player.dy += 0.7;
+            player.y += player.dy;
+
+            if (player.y + player.h > groundY) {
+                player.y = groundY - player.h;
+                player.dy = 0; player.jumpCount = 0;
+            }
+
+            if (frame % Math.max(45, 110 - Math.floor(score/3)) === 0) {
+                obstacles.push({ x: canvas.width, y: groundY - 40, w: 40, h: 40 });
+            }
+
+            if (frame % 150 === 0) {
+                coins.push({ x: canvas.width, y: groundY - 100 - Math.random() * 80 });
+            }
+
+            obstacles.forEach((obs, i) => {
+                obs.x -= currentSpeed;
+                if (player.x < obs.x + obs.w && player.x + 40 > obs.x && player.y < obs.y + obs.h && player.y + 60 > obs.y) {
+                    gameActive = false;
+                    createParticles(player.x + 25, player.y + 40, "#e67e22");
+                }
+                if (obs.x + obs.w < 0) { obstacles.splice(i, 1); score++; scoreElement.innerText = score; }
+            });
+
+            coins.forEach((coin, i) => {
+                coin.x -= currentSpeed;
+                let dx = (player.x + 25) - coin.x;
+                let dy = (player.y + 40) - coin.y;
+                if (Math.sqrt(dx*dx + dy*dy) < 40) { score += 5; coins.splice(i, 1); scoreElement.innerText = score; }
+                if (coin.x < 0) coins.splice(i, 1);
+            });
+
+            draw();
+            gameID = requestAnimationFrame(update);
+        }
+
+        function draw() {
+            let groundY = canvas.height - 100;
+            let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, score < 40 ? "#1e3c72" : "#050505");
+            grad.addColorStop(1, score < 40 ? "#6dd5fa" : "#2c3e50");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            stars.forEach(s => { ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI*2); ctx.fill(); s.x -= 0.5; if(s.x < 0) s.x = canvas.width; });
+
+            ctx.fillStyle = "#27ae60"; ctx.fillRect(0, groundY, canvas.width, 100);
+            ctx.fillStyle = "#2ecc71"; ctx.fillRect(0, groundY, canvas.width, 10);
+
+            if(gameActive) drawPlayer(player.x, player.y, frame * 0.2);
+
+            ctx.fillStyle = "#ff3300";
+            obstacles.forEach(obs => {
+                ctx.beginPath(); ctx.moveTo(obs.x, obs.y + 40); ctx.lineTo(obs.x + 20, obs.y); ctx.lineTo(obs.x + 40, obs.y + 40); ctx.fill(); 
+            });
+
+            ctx.fillStyle = "#f1c40f";
+            coins.forEach(c => { ctx.beginPath(); ctx.arc(c.x, c.y, 12, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle="white"; ctx.lineWidth=2; ctx.stroke(); });
+
+            particles.forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; });
+
+            if (!gameActive) {
+                if (score > highScore) { highScore = score; localStorage.setItem("runnerHighScore", score); highScoreElement.innerText = highScore; }
+                ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = "white"; ctx.textAlign = "center";
+                ctx.font = "bold 60px sans-serif"; ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+                ctx.font = "30px sans-serif"; ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2 + 60);
+                ctx.font = "20px sans-serif"; ctx.fillText("Tap to Restart", canvas.width/2, canvas.height/2 + 100);
+            }
+        }
+        update();
+    </script>
+</body>
+</html>
