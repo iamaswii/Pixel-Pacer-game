@@ -41,8 +41,7 @@
         let coins = [];
         let particles = [];
         let stars = [];
-        let currentSpeed = 8; // സ്പീഡ് കൺട്രോൾ ചെയ്യാൻ പ്രത്യേക വേരിയബിൾ
-
+        let currentSpeed = 8;
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -89,7 +88,7 @@
         function resetGame() {
             cancelAnimationFrame(gameID);
             score = 0;
-            currentSpeed = 8; // സ്പീഡ് കൃത്യമായി 8 ലേക്ക് മാറ്റുന്നു
+            currentSpeed = 8; 
             scoreElement.innerText = score;
             obstacles = [];
             coins = [];
@@ -130,7 +129,7 @@
             frame++;
             let groundY = canvas.height - 100;
             
-            // സ്പീഡ് ലോജിക് അപ്ഡേറ്റ് ചെയ്തു
+            
             currentSpeed = 8 + (score / 20);
 
             player.dy += 0.7;
